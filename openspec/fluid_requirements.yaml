@@ -1,0 +1,294 @@
+openspec: "1.0"
+kind: FluidRequirements
+
+metadata:
+  name: finapp-fluid-requirements
+  version: "0.1.0"
+  status: draft
+  last_updated: "2026-03-15"
+  description: >
+    Fluid requirements represent areas where the system must be designed for change.
+    They include: feature flags, extension points, configuration-driven behaviors,
+    migration paths, and future capability placeholders. Unlike requirements.yaml
+    (what the system does NOW), this file defines HOW the system should adapt
+    when requirements evolve.
+
+# =============================================================================
+# FEATURE FLAGS
+# =============================================================================
+feature_flags:
+  description: >
+    Feature flags allow capabilities to be toggled without code changes.
+    Implemented as environment variables (FINAPP_FEATURE_XXX=true/false).
+    All flags default to false unless specified.
+
+  flags:
+    - name: FEATURE_MULTI_USER
+      default: false
+      description: Enable multi-user support with separate portfolios per user
+      status: future
+      activation_condition: "When cloud deployment is configured"
+      implementation_notes: >
+        Currently all portfolio data belongs to a single implicit user.
+        When enabled, all queries must filter by authenticated user_id.
+        Requires auth middleware and user registration flow.
+
+    - name: FEATURE_CLOUD_SYNC
+      default: false
+      description: Enable cloud backup and sync of portfolio data
+      status: future
+      activation_condition: "When FEATURE_MULTI_USER is also enabled"
+      implementation_notes: >
+        Local SQLite → Cloud PostgreSQL migration.
+        Requires conflict resolution strategy for offline edits.
+
+    - name: FEATURE_BROKERAGE_IMPORT
+      default: false
+      description: Enable direct import from brokerage APIs (Plaid, Schwab, Fidelity)
+      status: exploratory
+      activation_condition: "When API credentials are configured"
+      implementation_notes: >
+        Would replace manual CSV import with automated sync.
+        Significant complexity in handling brokerage data format differences.
+        Security concern: storing brokerage credentials requires OAuth, not API keys.
+
+    - name: FEATURE_OPTIONS_TRACKING
+      default: false
+      description: Enable tracking of options positions (calls, puts, spreads)
+      status: future
+      implementation_notes: >
+        Options have different data model requirements (strike, expiry, Greeks).
+        Risk calculations must be updated for options-adjusted portfolio.
+        Extend AssetClass enum with options, covered_call, cash_secured_put.
+
+    - name: FEATURE_CRYPTO_DEFI
+      default: false
+      description: Enable tracking of DeFi positions, staking, and yield farming
+      status: exploratory
+      implementation_notes: >
+        Requires integration with blockchain data providers (Moralis, Covalent).
+        Significantly different data model for non-custodial positions.
+
+    - name: FEATURE_SOCIAL_SENTIMENT
+      default: false
+      description: Enable social media sentiment from Reddit/Twitter in addition to news
+      status: exploratory
+      implementation_notes: >
+        Reddit API has been restructured — evaluate availability.
+        Would extend news-mcp with social_sentiment tool.
+
+    - name: FEATURE_ADVANCED_CHARTS
+      default: false
+      description: Enable advanced charting with drawing tools and custom indicators
+      status: future
+      implementation_notes: >
+        Would require replacing Plotly with TradingView Lightweight Charts or similar.
+        Streamlit compatibility needs evaluation.
+
+    - name: FEATURE_EMAIL_ALERTS
+      default: false
+      description: Send price alerts and daily digests via email
+      status: future
+      activation_condition: "When SMTP settings are configured"
+      implementation_notes: >
+        Add SMTP settings to SettingsPage.
+        Implement background scheduler (APScheduler) for daily digest.
+
+    - name: FEATURE_PAPER_TRADING
+      default: false
+      description: Enable paper trading simulation with virtual portfolio
+      status: future
+      implementation_notes: >
+        Separate virtual_portfolio table mirrors portfolio but uses simulated trades.
+        Useful for testing investment hypotheses without real money.
+
+    - name: FEATURE_AI_AUTONOMOUS_ALERTS
+      default: false
+      description: Allow AI agents to proactively surface insights without user prompting
+      status: exploratory
+      implementation_notes: >
+        Requires background task scheduler.
+        AI would periodically review portfolio and generate unsolicited insights.
+        Privacy consideration: requires explicit user opt-in.
+
+# =============================================================================
+# EXTENSION POINTS
+# =============================================================================
+extension_points:
+  description: >
+    Defined interfaces where new implementations can be added without
+    modifying existing code. Follows Open/Closed Principle.
+
+  - name: MarketDataProvider
+    interface: src/finapp/domain/interfaces/market_data_provider.py
+    description: "Abstract interface for any market data source"
+    current_implementations:
+      - AlphaVantageProvider
+      - YFinanceProvider
+    add_new_provider_by:
+      - Implement MarketDataProvider interface
+      - Register in market-data-mcp provider chain
+      - Add API key env var to settings spec
+    extension_example: "Add Polygon.io as a premium market data provider"
+
+  - name: AIAgent
+    interface: src/finapp/app/agents/base_agent.py
+    description: "Abstract base class for all AI agents"
+    current_implementations:
+      - OrchestratorAgent, PortfolioAdvisorAgent, RiskAnalystAgent, etc.
+    add_new_agent_by:
+      - Implement BaseAgent with name, persona, tools_available, and respond() method
+      - Register in OrchestratorAgent's routing table
+      - Add to agents.yaml spec
+      - Add to AIAdvisorPage agent selector
+    extension_example: "Add a CryptoAdvisorAgent specialized in digital assets"
+
+  - name: MCPServer
+    interface: src/finapp/mcp_servers/base_server.py
+    description: "Base class for MCP server implementations"
+    add_new_mcp_server_by:
+      - Create new server class inheriting from BaseFinAppMCPServer
+      - Define tools using @mcp.tool() decorator
+      - Add server definition to mcp.yaml
+      - Register in application startup
+    extension_example: "Add an earnings-calendar-mcp for earnings announcement tracking"
+
+  - name: ExportFormat
+    interface: src/finapp/infrastructure/exporters/base_exporter.py
+    description: "Interface for report export formats"
+    current_implementations: [CSVExporter, PDFExporter]
+    add_new_format_by:
+      - Implement BaseExporter.export() method
+      - Register in export-mcp tool dispatcher
+    extension_example: "Add ExcelExporter for Excel workbook export"
+
+  - name: ChartComponent
+    description: "Plotly-based chart components that can be added to any page"
+    location: src/finapp/gui/components/charts/
+    add_new_chart_by:
+      - Create chart function returning Plotly figure
+      - Accept standardized data input format
+      - Follow theme configuration from gui.yaml
+
+# =============================================================================
+# CONFIGURATION-DRIVEN BEHAVIORS
+# =============================================================================
+configuration_driven:
+  description: >
+    Behaviors that change based on configuration, without code changes.
+    These are defined in config/settings.py using pydantic-settings.
+
+  configurable_settings:
+    - name: market_data_cache_ttl_seconds
+      env_var: FINAPP_QUOTE_CACHE_TTL
+      default: 300
+      description: "How long to cache market quotes before re-fetching"
+      range: [60, 3600]
+
+    - name: ai_model
+      env_var: FINAPP_AI_MODEL
+      default: "claude-sonnet-4-6"
+      allowed_values: ["claude-sonnet-4-6", "claude-opus-4-6", "claude-haiku-4-5-20251001"]
+      description: "AI model to use for agent reasoning (higher tier = more capable but costlier)"
+
+    - name: ai_temperature
+      env_var: FINAPP_AI_TEMPERATURE
+      default: 0.3
+      range: [0.0, 1.0]
+      description: "Temperature for AI agent responses (lower = more consistent)"
+
+    - name: base_currency
+      env_var: FINAPP_BASE_CURRENCY
+      default: "USD"
+      description: "Base currency for all portfolio valuations"
+
+    - name: benchmark_ticker
+      env_var: FINAPP_BENCHMARK_TICKER
+      default: "SPY"
+      description: "Default benchmark for performance comparison"
+
+    - name: risk_free_rate
+      env_var: FINAPP_RISK_FREE_RATE
+      default: 0.05
+      description: "Annual risk-free rate for Sharpe ratio calculation"
+
+    - name: large_position_warning_pct
+      env_var: FINAPP_LARGE_POSITION_WARNING_PCT
+      default: 10.0
+      description: "Warn when a single position exceeds this % of portfolio"
+
+    - name: data_refresh_interval_minutes
+      env_var: FINAPP_REFRESH_INTERVAL_MINUTES
+      default: 5
+      range: [1, 60]
+
+# =============================================================================
+# MIGRATION PATHS
+# =============================================================================
+migration_paths:
+
+  - name: SQLite to PostgreSQL
+    trigger: "When moving to cloud or multi-user deployment"
+    steps:
+      - Update DATABASE_URL environment variable to PostgreSQL connection string
+      - Run alembic upgrade head against new database
+      - Migrate existing SQLite data using included migration script
+      - Validate data integrity
+    code_impact: "Zero — SQLAlchemy abstraction handles dialect differences"
+    estimated_effort: low
+
+  - name: Streamlit to React Frontend
+    trigger: "If Streamlit's limitations (limited interactivity, customization) block UX goals"
+    steps:
+      - Build FastAPI backend exposing application layer as REST/WebSocket API
+      - Implement React frontend consuming the API
+      - Keep all business logic in application layer unchanged
+      - Migrate Streamlit session state to JWT auth tokens
+    code_impact: "New presentation layer; application and domain layers unchanged"
+    estimated_effort: high
+    design_note: >
+      Architecture is deliberately layered so Streamlit can be swapped.
+      Domain and application layers have no Streamlit dependencies.
+
+  - name: stdio MCP to SSE MCP Transport
+    trigger: "When MCP servers need to run on separate hosts (microservices deployment)"
+    steps:
+      - Change MCP server transport from stdio to SSE in each server
+      - Update client configuration with server URLs
+      - Add authentication to MCP server endpoints
+    code_impact: "Configuration change only — MCP tool implementations unchanged"
+    estimated_effort: low
+
+  - name: Single-User to Multi-User
+    trigger: "When user decides to share the application with family or deploy as SaaS"
+    steps:
+      - Enable FEATURE_MULTI_USER flag
+      - Add authentication middleware (OAuth2 or simple username/password)
+      - Add user_id filtering to all repository queries
+      - Add user registration and profile management pages
+      - Deploy with FEATURE_CLOUD_SYNC enabled
+    code_impact: "Moderate — repository layer changes, new auth middleware"
+    estimated_effort: medium
+
+# =============================================================================
+# VERSION STRATEGY
+# =============================================================================
+versioning:
+  api_versioning_strategy: >
+    MCP tool interfaces are versioned through the spec version in mcp.yaml.
+    Breaking changes to tool signatures require a new tool name or version suffix.
+    Tools should be backwards compatible for at least one version.
+
+  data_schema_versioning:
+    tool: alembic
+    strategy: >
+      Schema changes are made through numbered Alembic migrations.
+      Never modify existing migrations — always add new ones.
+      Migrations must be reversible (include downgrade() implementation).
+
+  spec_versioning:
+    current: "0.1.0"
+    policy: >
+      Spec version increments when a new version of the spec is finalized
+      before code generation. Claude Code should always generate code against
+      the current spec version. Breaking spec changes require a new major version.

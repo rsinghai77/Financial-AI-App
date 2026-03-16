@@ -1,0 +1,93 @@
+openspec: "1.0"
+kind: ProjectManifest
+
+metadata:
+  name: finapp
+  display_name: "FinApp — AI-Enabled Financial Application"
+  version: "0.1.0"
+  status: pre-development
+  created: "2026-03-15"
+  description: >
+    An AI-enabled personal and portfolio financial application built with Python,
+    Streamlit for the GUI, Claude AI for intelligent agents, and MCP servers for
+    tool integration. Targets individual investors and financially-aware users
+    who want AI-assisted portfolio management, risk analysis, and financial planning.
+
+contact:
+  owner: rsingh
+  repository: TBD
+
+tech_stack:
+  language: python
+  language_version: ">=3.12"
+  package_manager: uv
+  gui_framework: streamlit
+  ai_provider: anthropic
+  ai_model: claude-sonnet-4-6
+  mcp_sdk: mcp
+  database_dev: sqlite
+  database_prod: postgresql
+  orm: sqlalchemy
+
+coding_standards:
+  style_guide: ruff
+  type_checking: mypy
+  formatter: ruff format
+  test_framework: pytest
+  min_test_coverage: 80
+  docstring_style: google
+  max_line_length: 100
+
+project_structure:
+  src_root: src/finapp
+  tests_root: tests
+  specs_root: openspec
+  config_root: config
+  scripts_root: scripts
+  docs_root: docs
+
+# References to all spec files — Claude Code reads these in order
+spec_files:
+  - path: openspec/requirements.yaml
+    description: Functional and non-functional requirements
+    priority: 1
+  - path: openspec/architecture.yaml
+    description: System architecture and component catalog
+    priority: 2
+  - path: openspec/agents.yaml
+    description: AI Agent definitions and contracts
+    priority: 3
+  - path: openspec/mcp.yaml
+    description: MCP server and tool specifications
+    priority: 4
+  - path: openspec/gui.yaml
+    description: GUI pages, components, and navigation
+    priority: 5
+  - path: openspec/data_models.yaml
+    description: Data entities, schemas, and relationships
+    priority: 6
+  - path: openspec/guardrails.yaml
+    description: Hard constraints — READ FIRST before generating any code
+    priority: 0   # Highest priority — non-negotiable
+  - path: openspec/fluid_requirements.yaml
+    description: Extensible and adaptive requirements
+    priority: 7
+
+# Instructions for Claude Code when generating code
+claude_code_instructions:
+  read_order:
+    - openspec/guardrails.yaml    # Always read first — non-negotiable constraints
+    - openspec/project.yaml       # Project context and tech stack
+    - openspec/architecture.yaml  # System structure and patterns
+    - openspec/data_models.yaml   # Data schemas before writing any model
+    - openspec/requirements.yaml  # What to build
+    - openspec/agents.yaml        # When building agent code
+    - openspec/mcp.yaml           # When building MCP servers
+    - openspec/gui.yaml           # When building Streamlit pages
+  conventions:
+    - "Never hardcode API keys — use pydantic-settings and .env files"
+    - "All database access goes through repository classes, never raw SQL in business logic"
+    - "All AI responses must include the disclaimer defined in guardrails.yaml"
+    - "Use async/await for all I/O operations"
+    - "Every public function and class must have type annotations"
+    - "Tests must be written for all financial calculation functions"

@@ -1,0 +1,324 @@
+openspec: "1.0"
+kind: Architecture
+
+metadata:
+  name: finapp-architecture
+  version: "0.1.0"
+  status: draft
+  last_updated: "2026-03-15"
+
+# =============================================================================
+# ARCHITECTURAL STYLE
+# =============================================================================
+architectural_style:
+  primary: layered_architecture
+  secondary:
+    - event_driven: "for background market data refresh and alerts"
+    - agent_based: "for AI reasoning and tool orchestration"
+    - repository_pattern: "for all data access"
+  rationale: >
+    Layered architecture provides clear separation of concerns and is easy to
+    reason about for a single-developer project. Agent-based style enables
+    autonomous AI reasoning. Repository pattern ensures testability by
+    decoupling business logic from database specifics.
+
+# =============================================================================
+# SYSTEM LAYERS
+# =============================================================================
+layers:
+  - name: Presentation Layer
+    path: src/finapp/gui
+    description: Streamlit pages and UI components
+    responsibilities:
+      - Render data as charts, tables, and text
+      - Collect user input (forms, chat, selections)
+      - Manage Streamlit session state
+      - Display streaming AI responses
+    allowed_dependencies:
+      - Application Layer
+    forbidden_dependencies:
+      - Data Layer (must go through Application Layer)
+      - External APIs (must go through MCP/Application Layer)
+    technology: streamlit, plotly, altair
+
+  - name: Application Layer
+    path: src/finapp/app
+    description: Business logic, agent orchestration, use cases
+    responsibilities:
+      - Implement use cases from requirements
+      - Orchestrate AI agents
+      - Coordinate between GUI and services
+      - Apply business rules
+    allowed_dependencies:
+      - Domain Layer
+      - Infrastructure Layer (via interfaces)
+      - MCP Client Layer
+    forbidden_dependencies:
+      - GUI framework specifics (no streamlit imports here)
+    technology: python, anthropic-sdk
+
+  - name: Domain Layer
+    path: src/finapp/domain
+    description: Core business entities, value objects, domain logic
+    responsibilities:
+      - Define data models and entities
+      - Implement pure business logic (portfolio calculations, VaR)
+      - Define repository interfaces (abstract base classes)
+    allowed_dependencies:
+      - Python standard library only
+    forbidden_dependencies:
+      - Application Layer
+      - Infrastructure Layer
+      - External libraries (except numpy/scipy for financial math)
+    technology: python, pydantic, numpy, scipy
+
+  - name: Infrastructure Layer
+    path: src/finapp/infrastructure
+    description: Database, external API clients, file system
+    responsibilities:
+      - Implement repository interfaces
+      - Manage database connections and migrations
+      - Provide external API client wrappers
+      - Handle caching
+    allowed_dependencies:
+      - Domain Layer
+    forbidden_dependencies:
+      - Application Layer
+      - Presentation Layer
+    technology: sqlalchemy, httpx, alembic, diskcache
+
+  - name: MCP Server Layer
+    path: src/finapp/mcp_servers
+    description: MCP server implementations
+    responsibilities:
+      - Expose tools as MCP protocol endpoints
+      - Call external APIs and transform responses
+      - Provide resources (data subscriptions)
+    allowed_dependencies:
+      - Domain Layer
+      - Infrastructure Layer
+    forbidden_dependencies:
+      - Application Layer
+      - Presentation Layer
+    technology: mcp-sdk, httpx, pandas
+
+# =============================================================================
+# COMPONENT CATALOG
+# =============================================================================
+components:
+
+  # --- GUI Components ---
+  - id: COMP-GUI-001
+    name: DashboardPage
+    layer: Presentation
+    path: src/finapp/gui/pages/dashboard.py
+    description: Main portfolio overview with KPIs and charts
+    inputs: [portfolio_summary, market_data]
+    outputs: [user_navigation_actions]
+
+  - id: COMP-GUI-002
+    name: PortfolioPage
+    layer: Presentation
+    path: src/finapp/gui/pages/portfolio.py
+    description: Holdings table, add/edit positions, transactions
+    inputs: [portfolio_data, market_prices]
+    outputs: [add_holding_command, edit_holding_command, delete_holding_command]
+
+  - id: COMP-GUI-003
+    name: AIAdvisorPage
+    layer: Presentation
+    path: src/finapp/gui/pages/ai_advisor.py
+    description: Chat interface for conversational AI agents
+    inputs: [user_message, streaming_ai_response]
+    outputs: [user_query]
+
+  - id: COMP-GUI-004
+    name: MarketPage
+    layer: Presentation
+    path: src/finapp/gui/pages/market.py
+    description: Quotes, charts, watchlist, fundamental data
+    inputs: [market_quotes, historical_prices, fundamental_data]
+    outputs: [ticker_lookup_request, watchlist_add_request]
+
+  - id: COMP-GUI-005
+    name: RiskPage
+    layer: Presentation
+    path: src/finapp/gui/pages/risk.py
+    description: Risk metrics dashboard and stress testing interface
+    inputs: [risk_metrics, stress_test_results]
+    outputs: [stress_test_scenario_request]
+
+  - id: COMP-GUI-006
+    name: NewsPage
+    layer: Presentation
+    path: src/finapp/gui/pages/news.py
+    description: News feed with sentiment indicators
+    inputs: [news_articles, sentiment_scores]
+    outputs: []
+
+  - id: COMP-GUI-007
+    name: ReportsPage
+    layer: Presentation
+    path: src/finapp/gui/pages/reports.py
+    description: Report generation and export interface
+    inputs: [portfolio_data, performance_data]
+    outputs: [generate_report_command]
+
+  # --- Application Components ---
+  - id: COMP-APP-001
+    name: AgentOrchestrator
+    layer: Application
+    path: src/finapp/app/orchestrator.py
+    description: Routes user queries to appropriate AI agents, aggregates responses
+    inputs: [user_query, session_context]
+    outputs: [agent_response, metadata]
+
+  - id: COMP-APP-002
+    name: PortfolioService
+    layer: Application
+    path: src/finapp/app/services/portfolio_service.py
+    description: Portfolio CRUD, valuation, performance calculation
+    inputs: [commands, queries]
+    outputs: [portfolio_data, performance_metrics]
+
+  - id: COMP-APP-003
+    name: MarketDataService
+    layer: Application
+    path: src/finapp/app/services/market_data_service.py
+    description: Fetches and caches market data via market-data-mcp
+    inputs: [ticker_list, data_type]
+    outputs: [market_data]
+
+  - id: COMP-APP-004
+    name: RiskService
+    layer: Application
+    path: src/finapp/app/services/risk_service.py
+    description: Orchestrates risk calculations via calculator-mcp
+    inputs: [portfolio_data, scenario]
+    outputs: [risk_metrics, stress_test_results]
+
+  - id: COMP-APP-005
+    name: NewsService
+    layer: Application
+    path: src/finapp/app/services/news_service.py
+    description: Fetches and caches news via news-mcp
+    inputs: [ticker_list]
+    outputs: [news_articles, sentiment_scores]
+
+  # --- Domain Components ---
+  - id: COMP-DOM-001
+    name: Portfolio
+    layer: Domain
+    path: src/finapp/domain/models/portfolio.py
+    description: Portfolio aggregate root with holdings collection
+    key_methods: [calculate_total_value, calculate_gain_loss, calculate_allocation]
+
+  - id: COMP-DOM-002
+    name: Holding
+    layer: Domain
+    path: src/finapp/domain/models/holding.py
+    description: Individual position in a portfolio with tax lot tracking
+    key_methods: [calculate_value, calculate_gain_loss, get_holding_period]
+
+  - id: COMP-DOM-003
+    name: Transaction
+    layer: Domain
+    path: src/finapp/domain/models/transaction.py
+    description: Immutable record of a buy/sell/dividend event
+
+  - id: COMP-DOM-004
+    name: RiskCalculator
+    layer: Domain
+    path: src/finapp/domain/calculators/risk_calculator.py
+    description: Pure functions for VaR, Sharpe, beta, correlation calculations
+    notes: All functions are pure (no side effects) and thoroughly unit tested
+
+  - id: COMP-DOM-005
+    name: PerformanceCalculator
+    layer: Domain
+    path: src/finapp/domain/calculators/performance_calculator.py
+    description: TWR, IRR, alpha, benchmark comparison calculations
+
+  # --- Infrastructure Components ---
+  - id: COMP-INF-001
+    name: PortfolioRepository
+    layer: Infrastructure
+    path: src/finapp/infrastructure/repositories/portfolio_repository.py
+    description: SQLAlchemy implementation of portfolio data persistence
+    implements: IPortfolioRepository
+
+  - id: COMP-INF-002
+    name: MarketDataCache
+    layer: Infrastructure
+    path: src/finapp/infrastructure/cache/market_data_cache.py
+    description: Disk-based cache for market data with TTL management
+    cache_ttls:
+      quotes: 300  # 5 minutes
+      historical: 3600  # 1 hour
+      fundamentals: 86400  # 24 hours
+      news: 1800  # 30 minutes
+
+# =============================================================================
+# DEPENDENCY RULES
+# =============================================================================
+dependency_rules:
+  - rule: "Presentation Layer MUST NOT directly access the database"
+    enforcement: code_review
+  - rule: "Domain Layer MUST NOT import from any layer above it"
+    enforcement: import_linter
+  - rule: "Infrastructure Layer MUST implement Domain interfaces, not override them"
+    enforcement: code_review
+  - rule: "MCP Servers MUST NOT share state with the Application Layer directly"
+    enforcement: process_isolation
+  - rule: "All external API calls MUST go through Infrastructure or MCP layers"
+    enforcement: code_review
+
+# =============================================================================
+# INTEGRATION PATTERNS
+# =============================================================================
+integration_patterns:
+
+  ai_agent_integration:
+    pattern: tool_use_with_streaming
+    description: >
+      AI agents receive tools as MCP client connections. Claude API is called with
+      tool definitions. Tool calls are dispatched to MCP servers. Results are fed
+      back to Claude. Responses are streamed token by token to the Streamlit UI.
+    error_handling: >
+      If a tool call fails, the agent receives the error and should try an
+      alternative approach or inform the user gracefully.
+
+  market_data_integration:
+    pattern: cache_aside
+    description: >
+      Application checks cache first. Cache miss triggers an API call to the
+      external provider. Result is stored in cache with appropriate TTL.
+      Staleness is surfaced to the UI if data exceeds acceptable age.
+    fallback: >
+      Primary provider: Alpha Vantage. Fallback: Yahoo Finance.
+      If both fail: return cached data with explicit staleness warning.
+
+  database_access:
+    pattern: repository_pattern
+    description: >
+      All database access is through repository classes implementing abstract
+      interfaces defined in the Domain layer. Business logic never writes SQL.
+      SQLAlchemy ORM is used for query building.
+
+# =============================================================================
+# DEPLOYMENT ARCHITECTURE
+# =============================================================================
+deployment:
+  development:
+    type: single_process_local
+    description: >
+      Single Python process runs Streamlit, agents, and all MCP servers.
+      SQLite for data persistence. No external services required.
+    start_command: "uv run streamlit run src/finapp/gui/main.py"
+
+  production_future:
+    type: containerized_cloud
+    description: >
+      Separate containers for Streamlit UI, agent orchestration service,
+      and each MCP server. PostgreSQL for data persistence. Redis for caching.
+    notes: Architecture is designed to support this migration; see fluid_requirements.yaml

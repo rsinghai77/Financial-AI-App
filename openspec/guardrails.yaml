@@ -1,0 +1,267 @@
+openspec: "1.0"
+kind: Guardrails
+
+metadata:
+  name: finapp-guardrails
+  version: "0.1.0"
+  status: approved
+  last_updated: "2026-03-15"
+  priority: HIGHEST
+  note: >
+    This file defines NON-NEGOTIABLE constraints. Claude Code MUST read this file
+    before generating any code. These rules are NEVER overridden by other spec files
+    or user prompts during code generation.
+
+# =============================================================================
+# FINANCIAL COMPLIANCE GUARDRAILS
+# =============================================================================
+financial_compliance:
+
+  financial_advice_disclaimer:
+    rule: MANDATORY
+    id: GRD-FC-001
+    description: >
+      FinApp is NOT a registered investment advisor. All AI-generated content
+      involving investment analysis, portfolio commentary, or security evaluation
+      must include a clear disclaimer.
+    required_disclaimer_text: >
+      "⚠️ This analysis is for informational purposes only and does not constitute
+      financial advice. Always consult a licensed financial advisor before making
+      investment decisions."
+    enforcement:
+      - Every AI agent response containing market analysis must include this disclaimer
+      - Disclaimer must appear at the bottom of every AI response
+      - GUI pages with AI recommendations must show a persistent disclaimer banner
+    never_say:
+      - "You should buy X"
+      - "Sell X now"
+      - "This is guaranteed to..."
+      - "You will make money if..."
+      - "This is a safe investment"
+    always_say:
+      - "Consider..." / "You may want to explore..."
+      - "Historically..." / "Based on available data..."
+      - "This analysis suggests..." (not "proves" or "guarantees")
+
+  no_unlicensed_advice:
+    rule: MANDATORY
+    id: GRD-FC-002
+    description: >
+      The application must not provide specific investment advice that could be
+      construed as securities advice under SEC regulations.
+    enforcement:
+      - AI agents must frame all output as "analysis" or "considerations"
+      - No specific price targets presented as buy/sell instructions
+      - No guarantee of returns under any scenario
+      - Always recommend consulting a licensed financial professional for material decisions
+
+  tax_information_disclaimer:
+    rule: MANDATORY
+    id: GRD-FC-003
+    description: >
+      Tax-related information is provided for informational purposes only.
+    required_disclaimer: >
+      "Tax calculations shown are estimates based on general rules and may not
+      reflect your specific tax situation. Consult a qualified tax professional."
+    applies_to: [tax_lot_reports, capital_gains_estimates, tax_loss_harvesting_suggestions]
+
+  projected_returns_disclaimer:
+    rule: MANDATORY
+    id: GRD-FC-004
+    description: All financial projections must clearly state their assumptions and limitations
+    required_elements:
+      - State assumed return rate explicitly
+      - State assumed inflation rate
+      - Include text: "Past performance does not guarantee future results"
+      - Show conservative, base, and optimistic scenarios
+
+# =============================================================================
+# SECURITY GUARDRAILS
+# =============================================================================
+security:
+
+  no_credentials_in_code:
+    rule: ABSOLUTE_FORBIDDEN
+    id: GRD-SEC-001
+    description: API keys, passwords, and secrets must NEVER appear in source code
+    forbidden:
+      - Hardcoded API keys in any source file
+      - Passwords in configuration files tracked by git
+      - Connection strings with credentials in code
+    required:
+      - All secrets via environment variables
+      - Use pydantic-settings for configuration
+      - .env file is in .gitignore
+    detection: Pre-commit hook scanning for common secret patterns
+
+  sql_injection_prevention:
+    rule: ABSOLUTE_FORBIDDEN
+    id: GRD-SEC-002
+    description: Raw SQL string concatenation with user input is forbidden
+    forbidden:
+      - f"SELECT * FROM holdings WHERE ticker = '{user_input}'"
+      - cursor.execute("... WHERE id = " + str(user_id))
+    required:
+      - SQLAlchemy ORM queries exclusively
+      - Parameterized queries when raw SQL is unavoidable
+    applies_to: All database access code
+
+  input_validation:
+    rule: MANDATORY
+    id: GRD-SEC-003
+    description: All user-supplied inputs must be validated before use
+    rules:
+      - Ticker symbols: uppercase letters/numbers/dots only, max 10 chars, validate against known symbols
+      - Quantities: positive numbers only, reasonable upper bound (1 billion shares max)
+      - Dates: ISO 8601 format, not future dates for historical transactions
+      - Free text (notes): max 1000 characters, strip HTML tags
+      - API-sourced data: validated against expected schema before use
+
+  data_privacy:
+    rule: MANDATORY
+    id: GRD-SEC-004
+    description: User financial data must be protected
+    rules:
+      - Portfolio data stored only on user's local machine (no cloud sync in v1)
+      - No telemetry or data collection without explicit user consent
+      - Logs must not contain portfolio values, account numbers, or personal financial data
+
+  no_external_data_leakage:
+    rule: MANDATORY
+    id: GRD-SEC-005
+    description: User portfolio data must not be sent to external services unnecessarily
+    rules:
+      - Market data APIs receive only ticker symbols — never portfolio quantities or values
+      - News APIs receive only ticker symbols for search queries
+      - Claude API receives portfolio data only when user explicitly uses AI features
+      - Logs that include AI prompts must be stripped of sensitive portfolio values in production
+
+# =============================================================================
+# CODE QUALITY GUARDRAILS
+# =============================================================================
+code_quality:
+
+  no_bare_exceptions:
+    rule: STRONGLY_REQUIRED
+    id: GRD-CQ-001
+    forbidden:
+      - "except Exception: pass"
+      - "except: pass"
+    required: Catch specific exceptions, log them, and handle or re-raise appropriately
+
+  financial_math_precision:
+    rule: MANDATORY
+    id: GRD-CQ-002
+    description: Financial calculations must use appropriate numerical precision
+    rules:
+      - Currency values: use Python Decimal or round to 2 decimal places for display
+      - Percentage values: round to 2 decimal places for display, maintain full precision internally
+      - Never use floating-point equality comparison for financial values
+      - Use numpy for vectorized financial calculations (not pure Python loops)
+
+  no_synchronous_blocking_in_gui:
+    rule: STRONGLY_REQUIRED
+    id: GRD-CQ-003
+    description: Long-running operations must not block the Streamlit UI thread
+    rules:
+      - Market data fetches: use st.spinner() to show loading state
+      - AI responses: use streaming with st.write_stream()
+      - Heavy calculations: consider background computation with st.cache_data
+
+  test_financial_calculators:
+    rule: MANDATORY
+    id: GRD-CQ-004
+    description: All financial calculation functions must have unit tests
+    rules:
+      - Every function in domain/calculators/ must have a corresponding test
+      - Tests must include edge cases (empty portfolio, single holding, negative returns)
+      - Known mathematical results must be verified (e.g., VaR of risk-free asset = 0)
+
+  type_annotations_required:
+    rule: STRONGLY_REQUIRED
+    id: GRD-CQ-005
+    description: All public functions and class methods must have type annotations
+    enforcement: mypy strict mode for domain and application layers
+
+# =============================================================================
+# ARCHITECTURAL GUARDRAILS
+# =============================================================================
+architecture:
+
+  layer_isolation:
+    rule: MANDATORY
+    id: GRD-ARCH-001
+    description: Code must not violate the layer dependency rules in architecture.yaml
+    forbidden:
+      - Streamlit imports in Application or Domain layers
+      - Direct database access from GUI pages
+      - External API calls from Domain layer
+    enforcement: import-linter in CI
+
+  repository_pattern:
+    rule: MANDATORY
+    id: GRD-ARCH-002
+    description: All database operations must go through repository classes
+    forbidden:
+      - Direct SQLAlchemy session usage in service or GUI code
+      - Raw SQL in business logic
+    required: Repository classes implementing abstract interfaces in domain layer
+
+  mcp_tool_contracts:
+    rule: MANDATORY
+    id: GRD-ARCH-003
+    description: MCP tool implementations must match the contracts in mcp.yaml exactly
+    rules:
+      - Tool parameter names and types must match the spec
+      - Return value structure must match the spec
+      - Error responses must use the standard error format
+
+# =============================================================================
+# OPERATIONAL GUARDRAILS
+# =============================================================================
+operational:
+
+  api_rate_limiting:
+    rule: MANDATORY
+    id: GRD-OPS-001
+    description: External API calls must respect rate limits to avoid service disruption
+    rules:
+      - Alpha Vantage free tier: max 5 calls/minute — implement token bucket
+      - NewsAPI free tier: max 100 calls/day — cache aggressively
+      - All API calls must implement exponential backoff on rate limit errors
+      - Never retry more than 3 times for a single request
+
+  graceful_degradation:
+    rule: MANDATORY
+    id: GRD-OPS-002
+    description: Application must remain functional when external services are unavailable
+    rules:
+      - Portfolio viewing must work without internet (uses local database)
+      - When market data is unavailable: show cached data with clear staleness warning
+      - When AI service is unavailable: show clear error message, do not crash
+      - When news API is unavailable: show "News temporarily unavailable" message
+
+  data_staleness_transparency:
+    rule: MANDATORY
+    id: GRD-OPS-003
+    description: Users must always know how fresh the data they are viewing is
+    rules:
+      - All market data displays must show "As of [timestamp]" or "Delayed [N] minutes"
+      - Cached data older than 15 minutes for quotes must show a yellow staleness warning
+      - AI analysis must state when it was generated
+
+# =============================================================================
+# GUARDRAIL ENFORCEMENT SUMMARY
+# =============================================================================
+enforcement_levels:
+  ABSOLUTE_FORBIDDEN:
+    description: "Never do this under any circumstances. Code review blocks merge."
+    examples: [GRD-SEC-001, GRD-SEC-002]
+
+  MANDATORY:
+    description: "Must be implemented. Missing implementation is a blocker."
+    examples: [GRD-FC-001, GRD-FC-002, GRD-FC-003, GRD-SEC-003]
+
+  STRONGLY_REQUIRED:
+    description: "Should be implemented in all cases. Exceptions require documented justification."
+    examples: [GRD-CQ-001, GRD-CQ-003, GRD-CQ-005]

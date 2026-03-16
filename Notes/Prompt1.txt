@@ -1,0 +1,18 @@
+I want to learn about Spec Driven Development using OpenSpec standard.
+Explain to me in detail how effective is it to use formal OpenSpec compared to multiple interactive prompts with Claude Code for software debvelopment.
+Explain what files need to be created for SDD for providing requirements, instructions, guardrails, boundary conditions, fluid requirements that need to be extensible or adaptive etc. so that Claude Code can generate the best quality software.
+
+I want to build a financial application that contains AI Agents, MCP servers and tools, a GUI interface and other features that are available in a AI-enabled financial application.
+At this point in time, I am not clear about the requirements and use cases.
+I want Claude Code to build OpenSpec based artifacts that would define the requirements and other necessary stuff for this application.
+
+I want to use Python as the language for this application and uv as the package manager.
+I want to create the GUI interface using Streamlit library.
+
+Perform a detailed analysis of this task, use your judgement and add more relevant capabilities for this application.
+Provide a detailed analysis on your reasoning and generate the relevant artifacts for OpenSpec for this application in this folder.
+Generate an Architecture diagram and a high-level design diagram in Mermaid format in a markdown file.
+
+Do not generate any source code yet. I will review the OpenSpec files, update them and then ask you later to generate the software.
+
+Save your detailed response in markdown format to the file ClaudeWork_1.md

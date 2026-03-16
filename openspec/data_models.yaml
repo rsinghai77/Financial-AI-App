@@ -1,0 +1,415 @@
+openspec: "1.0"
+kind: DataModels
+
+metadata:
+  name: finapp-data-models
+  version: "0.1.0"
+  status: draft
+  last_updated: "2026-03-15"
+  orm: sqlalchemy
+  migration_tool: alembic
+  database_dev: sqlite
+  database_prod: postgresql
+
+# =============================================================================
+# DOMAIN ENTITIES (Pydantic Models — Business Logic)
+# =============================================================================
+domain_entities:
+
+  - name: Portfolio
+    description: Aggregate root containing all user accounts and holdings
+    path: src/finapp/domain/models/portfolio.py
+    fields:
+      - name: id
+        type: UUID
+        description: Unique portfolio identifier
+      - name: user_id
+        type: str
+        description: Owner identifier (local user for now)
+      - name: accounts
+        type: List[Account]
+        description: All accounts belonging to this portfolio
+      - name: created_at
+        type: datetime
+      - name: updated_at
+        type: datetime
+    computed_properties:
+      - total_value: "Sum of current value across all accounts"
+      - total_cost_basis: "Sum of cost basis across all accounts"
+      - total_gain_loss: "total_value - total_cost_basis"
+      - total_gain_loss_pct: "(total_gain_loss / total_cost_basis) * 100"
+      - asset_allocation: "Dict[AssetClass, percentage]"
+
+  - name: Account
+    description: A named investment account (brokerage, IRA, etc.)
+    path: src/finapp/domain/models/account.py
+    fields:
+      - name: id
+        type: UUID
+      - name: portfolio_id
+        type: UUID
+        foreign_key: Portfolio.id
+      - name: name
+        type: str
+        max_length: 100
+        example: "Fidelity Brokerage"
+      - name: account_type
+        type: AccountType
+        enum: [brokerage, ira, roth_ira, 401k, crypto, savings, other]
+      - name: currency
+        type: str
+        default: "USD"
+        max_length: 3
+      - name: holdings
+        type: List[Holding]
+      - name: created_at
+        type: datetime
+      - name: is_active
+        type: bool
+        default: true
+
+  - name: Holding
+    description: A single investment position within an account
+    path: src/finapp/domain/models/holding.py
+    fields:
+      - name: id
+        type: UUID
+      - name: account_id
+        type: UUID
+        foreign_key: Account.id
+      - name: ticker
+        type: str
+        max_length: 10
+        description: Exchange ticker symbol (e.g., AAPL, BTC-USD)
+      - name: asset_class
+        type: AssetClass
+        enum: [equity, etf, mutual_fund, bond, crypto, cash, reit, commodity, other]
+      - name: quantity
+        type: Decimal
+        precision: 10
+        scale: 6
+        description: Number of shares/units held (supports fractional shares)
+      - name: cost_basis_per_share
+        type: Decimal
+        precision: 14
+        scale: 4
+        description: Average cost basis per share/unit in account currency
+      - name: purchase_date
+        type: date
+        description: First purchase date (for holding period tracking)
+      - name: notes
+        type: str
+        nullable: true
+        max_length: 1000
+      - name: tax_lots
+        type: List[TaxLot]
+        description: Individual purchase lots for accurate tax tracking
+      - name: created_at
+        type: datetime
+      - name: is_open
+        type: bool
+        default: true
+    computed_properties:
+      - total_cost_basis: "quantity * cost_basis_per_share"
+      - current_value: "quantity * current_price (requires market data injection)"
+      - gain_loss_dollars: "current_value - total_cost_basis"
+      - gain_loss_pct: "(gain_loss_dollars / total_cost_basis) * 100"
+      - holding_period_days: "(today - purchase_date).days"
+      - is_long_term: "holding_period_days >= 365"
+
+  - name: TaxLot
+    description: Individual purchase lot for tax basis tracking
+    path: src/finapp/domain/models/tax_lot.py
+    fields:
+      - name: id
+        type: UUID
+      - name: holding_id
+        type: UUID
+        foreign_key: Holding.id
+      - name: quantity
+        type: Decimal
+        precision: 10
+        scale: 6
+      - name: cost_basis_per_share
+        type: Decimal
+        precision: 14
+        scale: 4
+      - name: purchase_date
+        type: date
+      - name: transaction_id
+        type: UUID
+        nullable: true
+        foreign_key: Transaction.id
+
+  - name: Transaction
+    description: Immutable record of a financial transaction
+    path: src/finapp/domain/models/transaction.py
+    fields:
+      - name: id
+        type: UUID
+      - name: account_id
+        type: UUID
+        foreign_key: Account.id
+      - name: ticker
+        type: str
+        max_length: 10
+      - name: transaction_type
+        type: TransactionType
+        enum: [buy, sell, dividend, transfer_in, transfer_out, split, reinvestment]
+      - name: quantity
+        type: Decimal
+        precision: 10
+        scale: 6
+        description: "Positive for acquisitions, negative for disposals"
+      - name: price_per_share
+        type: Decimal
+        precision: 14
+        scale: 4
+      - name: fees
+        type: Decimal
+        precision: 10
+        scale: 2
+        default: 0
+      - name: transaction_date
+        type: date
+      - name: settlement_date
+        type: date
+        nullable: true
+      - name: notes
+        type: str
+        nullable: true
+        max_length: 1000
+      - name: created_at
+        type: datetime
+    computed_properties:
+      - total_amount: "quantity * price_per_share + fees"
+    constraints:
+      - immutable: "Transactions are never modified after creation; corrections are new transactions"
+
+  - name: WatchlistItem
+    description: A security being monitored without being owned
+    path: src/finapp/domain/models/watchlist.py
+    fields:
+      - name: id
+        type: UUID
+      - name: user_id
+        type: str
+      - name: ticker
+        type: str
+        max_length: 10
+      - name: added_date
+        type: date
+      - name: notes
+        type: str
+        nullable: true
+      - name: alerts
+        type: List[PriceAlert]
+
+  - name: PriceAlert
+    description: A configurable price alert for a holding or watchlist item
+    path: src/finapp/domain/models/alert.py
+    fields:
+      - name: id
+        type: UUID
+      - name: ticker
+        type: str
+        max_length: 10
+      - name: alert_type
+        type: str
+        enum: [price_above, price_below, change_pct_above, change_pct_below]
+      - name: threshold_value
+        type: Decimal
+        precision: 14
+        scale: 4
+      - name: is_active
+        type: bool
+        default: true
+      - name: last_triggered_at
+        type: datetime
+        nullable: true
+      - name: created_at
+        type: datetime
+
+  - name: FinancialGoal
+    description: A user-defined financial goal with progress tracking
+    path: src/finapp/domain/models/goal.py
+    fields:
+      - name: id
+        type: UUID
+      - name: name
+        type: str
+        max_length: 200
+        example: "Retirement at 65"
+      - name: goal_type
+        type: str
+        enum: [retirement, house_down_payment, education, emergency_fund, travel, custom]
+      - name: target_amount
+        type: Decimal
+        precision: 14
+        scale: 2
+      - name: target_date
+        type: date
+      - name: current_amount
+        type: Decimal
+        precision: 14
+        scale: 2
+        default: 0
+      - name: monthly_contribution
+        type: Decimal
+        precision: 10
+        scale: 2
+        default: 0
+      - name: assumed_return_rate
+        type: Decimal
+        precision: 5
+        scale: 4
+        default: 0.07
+        description: "Annual return assumption (e.g., 0.07 = 7%)"
+      - name: notes
+        type: str
+        nullable: true
+      - name: created_at
+        type: datetime
+
+# =============================================================================
+# DATABASE SCHEMA (SQLAlchemy Table Definitions)
+# =============================================================================
+database_tables:
+
+  - table: portfolios
+    model: Portfolio
+    primary_key: id (UUID)
+    indexes:
+      - columns: [user_id]
+    columns:
+      - id: UUID, PRIMARY KEY, DEFAULT gen_random_uuid()
+      - user_id: VARCHAR(255), NOT NULL
+      - created_at: TIMESTAMP WITH TIME ZONE, NOT NULL, DEFAULT NOW()
+      - updated_at: TIMESTAMP WITH TIME ZONE, NOT NULL, DEFAULT NOW()
+
+  - table: accounts
+    model: Account
+    primary_key: id (UUID)
+    foreign_keys:
+      - portfolio_id -> portfolios.id ON DELETE CASCADE
+    indexes:
+      - columns: [portfolio_id]
+    columns:
+      - id: UUID, PRIMARY KEY
+      - portfolio_id: UUID, NOT NULL, FK
+      - name: VARCHAR(100), NOT NULL
+      - account_type: VARCHAR(20), NOT NULL
+      - currency: VARCHAR(3), NOT NULL, DEFAULT 'USD'
+      - is_active: BOOLEAN, NOT NULL, DEFAULT TRUE
+      - created_at: TIMESTAMP WITH TIME ZONE
+
+  - table: holdings
+    model: Holding
+    primary_key: id (UUID)
+    foreign_keys:
+      - account_id -> accounts.id ON DELETE CASCADE
+    indexes:
+      - columns: [account_id]
+      - columns: [ticker]
+      - columns: [account_id, ticker, is_open]  # Composite for portfolio queries
+    columns:
+      - id: UUID, PRIMARY KEY
+      - account_id: UUID, NOT NULL, FK
+      - ticker: VARCHAR(10), NOT NULL
+      - asset_class: VARCHAR(20), NOT NULL
+      - quantity: NUMERIC(10, 6), NOT NULL
+      - cost_basis_per_share: NUMERIC(14, 4), NOT NULL
+      - purchase_date: DATE, NOT NULL
+      - notes: TEXT, NULLABLE
+      - is_open: BOOLEAN, NOT NULL, DEFAULT TRUE
+      - created_at: TIMESTAMP WITH TIME ZONE
+      - updated_at: TIMESTAMP WITH TIME ZONE
+
+  - table: tax_lots
+    model: TaxLot
+    primary_key: id (UUID)
+    foreign_keys:
+      - holding_id -> holdings.id ON DELETE CASCADE
+      - transaction_id -> transactions.id ON DELETE SET NULL
+    indexes:
+      - columns: [holding_id]
+      - columns: [purchase_date]
+
+  - table: transactions
+    model: Transaction
+    primary_key: id (UUID)
+    foreign_keys:
+      - account_id -> accounts.id ON DELETE RESTRICT  # Don't delete account with transactions
+    indexes:
+      - columns: [account_id]
+      - columns: [ticker]
+      - columns: [transaction_date]
+      - columns: [transaction_type]
+    constraints:
+      - "No UPDATE or DELETE — transactions are append-only"
+
+  - table: watchlist_items
+    model: WatchlistItem
+    primary_key: id (UUID)
+    indexes:
+      - columns: [user_id]
+      - columns: [ticker]
+    unique: [user_id, ticker]
+
+  - table: price_alerts
+    model: PriceAlert
+    primary_key: id (UUID)
+    indexes:
+      - columns: [ticker, is_active]
+
+  - table: financial_goals
+    model: FinancialGoal
+    primary_key: id (UUID)
+    indexes:
+      - columns: [goal_type]
+
+# =============================================================================
+# CACHED/TRANSIENT DATA (Not persisted in database)
+# =============================================================================
+transient_data:
+
+  - name: MarketQuote
+    description: Real-time or delayed market quote (from MCP, not stored in DB)
+    fields:
+      - ticker: str
+      - price: Decimal
+      - change: Decimal
+      - change_pct: Decimal
+      - volume: int
+      - market_cap: Optional[Decimal]
+      - high_52w: Optional[Decimal]
+      - low_52w: Optional[Decimal]
+      - data_timestamp: datetime
+      - is_cached: bool
+      - cache_age_seconds: int
+
+  - name: PortfolioSummary
+    description: Computed portfolio overview (aggregated, not stored)
+    fields:
+      - total_value: Decimal
+      - total_cost_basis: Decimal
+      - total_gain_loss: Decimal
+      - total_gain_loss_pct: Decimal
+      - day_change: Decimal
+      - day_change_pct: Decimal
+      - asset_allocation: Dict[str, Decimal]
+      - as_of: datetime
+
+  - name: RiskMetrics
+    description: Computed risk metrics (calculated on demand, not stored)
+    fields:
+      - var_95_1d_pct: Decimal
+      - var_95_1d_dollars: Decimal
+      - var_99_1d_pct: Decimal
+      - var_99_1d_dollars: Decimal
+      - portfolio_beta: Decimal
+      - sharpe_ratio: Decimal
+      - sortino_ratio: Decimal
+      - max_drawdown_pct: Decimal
+      - volatility_annualized: Decimal
+      - calculated_at: datetime

@@ -1,0 +1,395 @@
+openspec: "1.0"
+kind: Requirements
+
+metadata:
+  name: finapp-requirements
+  version: "0.1.0"
+  status: draft
+  last_updated: "2026-03-15"
+  notes: >
+    Requirements are currently in early draft. Many epics are marked 'exploratory'
+    because the user has not yet finalized use cases. Claude Code should treat
+    'exploratory' requirements as desired direction, not firm contracts.
+
+# Priority levels: P0 (must-have MVP), P1 (important), P2 (nice-to-have), P3 (future)
+# Status: draft, exploratory, approved, in-progress, done, deferred
+
+# =============================================================================
+# FUNCTIONAL REQUIREMENTS
+# =============================================================================
+functional_requirements:
+
+  # ---------------------------------------------------------------------------
+  epic_portfolio_management:
+    id: EPM
+    name: Portfolio Management
+    priority: P0
+    status: approved
+    description: Core portfolio tracking across multiple asset classes
+
+    stories:
+      - id: EPM-001
+        name: View Portfolio Dashboard
+        priority: P0
+        status: approved
+        as_a: investor
+        i_want_to: see an overview of my entire portfolio with current values and performance
+        so_that: I can quickly assess my financial position
+        acceptance_criteria:
+          - Display total portfolio value in USD
+          - Show gain/loss in dollar and percentage terms (1D, 1W, 1M, YTD, 1Y, All)
+          - List all holdings with quantity, cost basis, current value, gain/loss
+          - Show asset allocation breakdown (by asset class, sector, geography)
+          - Refresh data within 5 seconds of page load
+
+      - id: EPM-002
+        name: Add/Edit Holdings
+        priority: P0
+        status: approved
+        as_a: investor
+        i_want_to: manually add, edit, or remove investment holdings
+        so_that: my portfolio data is accurate and up to date
+        acceptance_criteria:
+          - Support adding stock, ETF, mutual fund, bond, crypto, cash positions
+          - Capture: ticker, quantity, purchase price, purchase date, account
+          - Allow editing quantity and notes; preserve transaction history
+          - Support CSV import of holdings
+          - Validate ticker symbols against market data before saving
+
+      - id: EPM-003
+        name: Transaction History
+        priority: P0
+        status: approved
+        as_a: investor
+        i_want_to: view and record all buy/sell/dividend transactions
+        so_that: I have a complete audit trail of my investment activity
+        acceptance_criteria:
+          - Record: date, type (buy/sell/dividend/transfer), ticker, quantity, price, fees
+          - Filter by date range, account, security, transaction type
+          - Export transaction history to CSV
+
+      - id: EPM-004
+        name: Multi-Account Support
+        priority: P1
+        status: draft
+        as_a: investor
+        i_want_to: track multiple investment accounts separately and combined
+        so_that: I have a complete picture across brokerage, IRA, 401k, crypto
+        acceptance_criteria:
+          - Support named accounts with type labels (Brokerage, IRA, Roth IRA, 401k, Crypto)
+          - View portfolio by individual account or consolidated view
+          - Transfer positions between accounts
+
+      - id: EPM-005
+        name: Benchmark Comparison
+        priority: P1
+        status: draft
+        as_a: investor
+        i_want_to: compare my portfolio performance against market benchmarks
+        so_that: I can assess whether I am outperforming or underperforming the market
+        acceptance_criteria:
+          - Compare against S&P 500, NASDAQ, Dow Jones, custom index
+          - Show alpha and beta calculations
+          - Display side-by-side performance chart
+
+  # ---------------------------------------------------------------------------
+  epic_market_intelligence:
+    id: EMI
+    name: Market Intelligence
+    priority: P0
+    status: approved
+    description: Real-time and historical market data, quotes, and analysis
+
+    stories:
+      - id: EMI-001
+        name: Real-time Quotes
+        priority: P0
+        status: approved
+        as_a: investor
+        i_want_to: see current market prices for securities I own or watch
+        so_that: I can make timely decisions
+        acceptance_criteria:
+          - Display bid, ask, last price, volume, daily change for any ticker
+          - Data staleness must be indicated if older than 15 minutes
+          - Support stocks, ETFs, crypto, and indices
+
+      - id: EMI-002
+        name: Historical Price Charts
+        priority: P0
+        status: approved
+        as_a: investor
+        i_want_to: view historical price charts with technical indicators
+        so_that: I can analyze price trends
+        acceptance_criteria:
+          - Time ranges: 1D, 5D, 1M, 3M, 6M, YTD, 1Y, 5Y, All
+          - Candlestick and line chart modes
+          - Overlay: SMA, EMA, Bollinger Bands, MACD, RSI, Volume
+
+      - id: EMI-003
+        name: Watchlist
+        priority: P1
+        status: draft
+        as_a: investor
+        i_want_to: maintain a watchlist of securities I am monitoring
+        so_that: I can track potential investments without owning them
+        acceptance_criteria:
+          - Add/remove tickers to watchlist
+          - Display same quote data as portfolio holdings
+          - Set price alerts on watchlist items
+
+      - id: EMI-004
+        name: Fundamental Data
+        priority: P1
+        status: draft
+        as_a: investor
+        i_want_to: view key financial metrics for any company
+        so_that: I can evaluate whether a stock is fairly valued
+        acceptance_criteria:
+          - Display: P/E, P/B, P/S, EV/EBITDA, dividend yield, payout ratio
+          - Show recent earnings history and estimates
+          - Display revenue, profit, and margin trends
+
+  # ---------------------------------------------------------------------------
+  epic_ai_advisory:
+    id: EAI
+    name: AI-Powered Advisory
+    priority: P0
+    status: approved
+    description: Conversational AI agents providing analysis and recommendations
+
+    stories:
+      - id: EAI-001
+        name: Portfolio Chat Interface
+        priority: P0
+        status: approved
+        as_a: investor
+        i_want_to: ask natural language questions about my portfolio and get AI analysis
+        so_that: I can get insights without needing to know financial formulas
+        acceptance_criteria:
+          - Stream AI responses in real time
+          - AI has access to current portfolio data and market data
+          - Responses include relevant charts and data tables
+          - Every response includes the standard financial disclaimer
+          - Support follow-up questions within a conversation session
+
+      - id: EAI-002
+        name: Investment Recommendations
+        priority: P1
+        status: exploratory
+        as_a: investor
+        i_want_to: receive personalized investment suggestions based on my portfolio
+        so_that: I can discover opportunities aligned with my goals
+        acceptance_criteria:
+          - Recommendations consider: current holdings, risk tolerance, investment horizon
+          - Always framed as considerations/analysis, never as direct instructions
+          - Include rationale for each recommendation
+          - Flag conflicts with current positions
+
+      - id: EAI-003
+        name: Portfolio Rebalancing Suggestions
+        priority: P1
+        status: exploratory
+        as_a: investor
+        i_want_to: get suggestions for rebalancing my portfolio to target allocations
+        so_that: I can maintain my desired risk/return profile
+        acceptance_criteria:
+          - Allow setting target allocation percentages by asset class/sector
+          - AI calculates drift from target and suggests rebalancing trades
+          - Factor in tax implications of selling (short-term vs long-term gains)
+
+  # ---------------------------------------------------------------------------
+  epic_risk_management:
+    id: ERM
+    name: Risk Management
+    priority: P1
+    status: draft
+    description: Portfolio risk quantification, stress testing, and monitoring
+
+    stories:
+      - id: ERM-001
+        name: Risk Dashboard
+        priority: P1
+        status: draft
+        as_a: investor
+        i_want_to: see a comprehensive view of my portfolio's risk exposure
+        so_that: I understand the downside risks I am taking
+        acceptance_criteria:
+          - Display Value at Risk (95% and 99% confidence, 1-day and 10-day)
+          - Show portfolio beta, volatility, and Sharpe ratio
+          - Concentration risk: identify positions > 5% of portfolio
+          - Correlation heatmap for holdings
+
+      - id: ERM-002
+        name: Stress Testing
+        priority: P1
+        status: exploratory
+        as_a: investor
+        i_want_to: see how my portfolio would perform under historical market crashes
+        so_that: I understand tail risk
+        acceptance_criteria:
+          - Scenarios: 2008 Financial Crisis, 2020 COVID Crash, 2022 Rate Hike, custom
+          - Show estimated portfolio loss in dollars and percentage
+          - Identify which holdings drive the most loss
+
+      - id: ERM-003
+        name: Price Alerts
+        priority: P1
+        status: draft
+        as_a: investor
+        i_want_to: set price alerts on holdings and watchlist items
+        so_that: I am notified when significant price moves occur
+        acceptance_criteria:
+          - Alert types: price above X, price below X, change % in 1 day
+          - Display alerts in the UI (no external notifications in v1)
+          - Log alert history
+
+  # ---------------------------------------------------------------------------
+  epic_news_sentiment:
+    id: ENS
+    name: News & Sentiment
+    priority: P1
+    status: draft
+    description: Financial news aggregation, sentiment analysis, and impact assessment
+
+    stories:
+      - id: ENS-001
+        name: Portfolio News Feed
+        priority: P1
+        status: draft
+        as_a: investor
+        i_want_to: see relevant financial news for companies I own
+        so_that: I stay informed about events affecting my investments
+        acceptance_criteria:
+          - Automatically filter news by portfolio holdings and watchlist
+          - Show: headline, source, publication time, sentiment score (positive/neutral/negative)
+          - Link to full article
+          - Refresh every 30 minutes
+
+      - id: ENS-002
+        name: Sentiment Analysis
+        priority: P2
+        status: exploratory
+        as_a: investor
+        i_want_to: see aggregate sentiment trends for my holdings
+        so_that: I can gauge market mood beyond price movements
+        acceptance_criteria:
+          - Sentiment score per holding for last 7 days and 30 days
+          - Overall portfolio sentiment score
+          - Correlate sentiment changes with price movements
+
+  # ---------------------------------------------------------------------------
+  epic_financial_planning:
+    id: EFP
+    name: Financial Planning
+    priority: P2
+    status: exploratory
+    description: Personal budgeting, goal tracking, and financial projections
+
+    stories:
+      - id: EFP-001
+        name: Net Worth Tracker
+        priority: P2
+        status: exploratory
+        as_a: user
+        i_want_to: track my total net worth including all assets and liabilities
+        so_that: I have a complete financial picture
+        acceptance_criteria:
+          - Manual entry of assets: real estate, vehicles, cash, other
+          - Manual entry of liabilities: mortgage, loans, credit cards
+          - Net worth = total assets - total liabilities
+          - Historical net worth chart
+
+      - id: EFP-002
+        name: Financial Goal Tracking
+        priority: P2
+        status: exploratory
+        as_a: user
+        i_want_to: set financial goals and track progress toward them
+        so_that: I stay motivated and on track
+        acceptance_criteria:
+          - Goal types: retirement, house down payment, education, emergency fund, custom
+          - Set target amount and target date
+          - AI projects whether goal is on track given current savings rate
+
+  # ---------------------------------------------------------------------------
+  epic_reporting:
+    id: ERR
+    name: Reporting & Export
+    priority: P1
+    status: draft
+    description: Generating reports and exporting data
+
+    stories:
+      - id: ERR-001
+        name: Performance Report
+        priority: P1
+        status: draft
+        as_a: investor
+        i_want_to: generate a PDF summary of my portfolio performance
+        so_that: I can share it or keep records
+        acceptance_criteria:
+          - Include: portfolio summary, holdings table, performance chart, asset allocation chart
+          - Date range selectable
+          - PDF and CSV export formats
+
+      - id: ERR-002
+        name: Tax Lot Report
+        priority: P2
+        status: exploratory
+        as_a: investor
+        i_want_to: see my unrealized and realized gains organized by tax lot
+        so_that: I can plan tax-loss harvesting
+        acceptance_criteria:
+          - Show each lot: shares, cost basis, current value, unrealized gain/loss, holding period
+          - Indicate short-term vs long-term capital gains status
+          - Highlight tax-loss harvesting opportunities
+
+# =============================================================================
+# NON-FUNCTIONAL REQUIREMENTS
+# =============================================================================
+non_functional_requirements:
+
+  performance:
+    page_load_time:
+      target: "< 2 seconds"
+      maximum: "< 5 seconds"
+      notes: Streamlit pages should load quickly; use caching aggressively
+    market_data_refresh:
+      target: "< 3 seconds"
+      notes: Quote data from cache; background refresh every 5 minutes
+    ai_response_first_token:
+      target: "< 2 seconds"
+      notes: Stream tokens as they arrive; do not wait for full response
+    database_query_time:
+      target: "< 100ms for 95th percentile"
+
+  security:
+    authentication: required_in_production
+    api_keys: stored_in_env_vars_only
+    data_encryption: at_rest_for_production
+    input_validation: all_user_inputs_sanitized
+    sql_injection: prevented_via_orm
+    secrets_in_code: forbidden
+
+  reliability:
+    uptime_target: "99% for single-user local deployment"
+    data_backup: daily_sqlite_backup
+    graceful_degradation: >
+      If market data API is unavailable, show cached data with staleness warning.
+      Do not block core portfolio viewing.
+
+  usability:
+    target_user: "financially literate individual investor"
+    learning_curve: "< 10 minutes to core features"
+    mobile_support: "Streamlit responsive — basic mobile support"
+    accessibility: "WCAG 2.1 AA for color contrast and keyboard navigation"
+
+  scalability:
+    initial_target: single_user_local
+    future_target: multi_user_cloud_deployment
+    notes: Architecture must support migration to cloud with minimal refactoring
+
+  maintainability:
+    code_coverage: ">= 80%"
+    documentation: "All public APIs documented"
+    dependency_updates: quarterly_review

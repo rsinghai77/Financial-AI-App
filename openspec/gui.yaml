@@ -1,0 +1,368 @@
+openspec: "1.0"
+kind: GUISpecification
+
+metadata:
+  name: finapp-gui
+  version: "0.1.0"
+  status: draft
+  last_updated: "2026-03-15"
+  framework: streamlit
+
+global_ui_config:
+  theme:
+    base: dark
+    primary_color: "#1E88E5"        # Blue — trust and professionalism
+    secondary_color: "#43A047"      # Green — positive returns
+    negative_color: "#E53935"       # Red — losses
+    neutral_color: "#9E9E9E"        # Grey — neutral data
+    background_color: "#0E1117"     # Streamlit dark background
+    font_family: "Source Sans Pro"
+  layout: wide                       # Use full screen width
+  sidebar_state: expanded
+  page_icon: "💼"
+  app_title: "FinApp"
+
+# Standard components reused across pages
+shared_components:
+
+  disclaimer_banner:
+    description: "Standard financial disclaimer shown on AI advisory pages"
+    text: >
+      ⚠️ FinApp provides information for educational purposes only. Nothing here constitutes
+      financial advice. Always consult a licensed financial advisor before making investment decisions.
+    style: warning_banner
+    placement: top_of_ai_pages
+
+  holding_row:
+    description: "Standard row for displaying a holding in a table"
+    columns: [Ticker, Name, Quantity, Cost Basis, Current Price, Current Value, Gain/Loss ($), Gain/Loss (%), Day Change]
+    conditional_formatting:
+      positive: green
+      negative: red
+      neutral: grey
+
+  metric_card:
+    description: "KPI metric card with value, delta, and label"
+    fields: [label, value, delta, delta_color]
+
+  ai_chat_message:
+    description: "A single message in the AI chat interface"
+    fields: [role (user/assistant), content, timestamp, agent_name]
+    streaming: true
+    markdown_rendering: true
+
+# =============================================================================
+# PAGES
+# =============================================================================
+pages:
+
+  # ---------------------------------------------------------------------------
+  - id: PAGE-001
+    name: DashboardPage
+    route: "/"
+    title: "Portfolio Dashboard"
+    icon: "📊"
+    priority: P0
+    description: Main entry point — portfolio overview at a glance
+
+    layout:
+      - row:
+          name: kpi_row
+          columns: 4
+          components:
+            - metric_card: {label: "Total Value", value: total_portfolio_value, delta: day_change_pct}
+            - metric_card: {label: "Day's Gain/Loss", value: day_gain_loss_dollars, delta: day_change_pct}
+            - metric_card: {label: "Total Return", value: total_return_pct, delta: ytd_return_pct}
+            - metric_card: {label: "Portfolio Beta", value: portfolio_beta, delta: null}
+
+      - row:
+          name: charts_row
+          columns: 2
+          components:
+            - chart:
+                id: portfolio_value_chart
+                type: line_chart
+                title: "Portfolio Value Over Time"
+                x_axis: date
+                y_axis: portfolio_value
+                time_range_selector: [1M, 3M, 6M, YTD, 1Y, All]
+                plotly: true
+            - chart:
+                id: allocation_pie
+                type: pie_chart
+                title: "Asset Allocation"
+                breakdown_options: [Asset Class, Sector, Geography]
+                plotly: true
+
+      - row:
+          name: holdings_table_row
+          components:
+            - table:
+                id: top_holdings_table
+                title: "Holdings Summary"
+                component: holding_row
+                sortable: true
+                max_rows_default: 10
+                expandable: true
+
+      - row:
+          name: news_preview_row
+          components:
+            - news_preview:
+                title: "Latest Portfolio News"
+                max_items: 5
+                link_to: NewsPage
+
+    data_requirements:
+      - portfolio.get_portfolio
+      - portfolio.get_performance(period=1d)
+      - market_data.get_quote(portfolio_tickers)
+      - news.search_news(portfolio_tickers, max_articles=5)
+
+  # ---------------------------------------------------------------------------
+  - id: PAGE-002
+    name: PortfolioPage
+    route: "/portfolio"
+    title: "My Portfolio"
+    icon: "💼"
+    priority: P0
+    description: Full portfolio management — holdings, add/edit, transactions
+
+    tabs:
+      - name: Holdings
+        components:
+          - holdings_table_full: {component: holding_row, sortable: true, filterable: true}
+          - buttons: [Add Holding, Import CSV, Export CSV]
+
+      - name: Add/Edit Holding
+        components:
+          - form:
+              id: add_holding_form
+              fields:
+                - ticker: {type: text_input, placeholder: "e.g., AAPL", validation: ticker_lookup}
+                - asset_class: {type: selectbox, options: ["equity", "etf", "mutual_fund", "bond", "crypto", "cash", "other"]}
+                - quantity: {type: number_input, min: 0.001, step: 0.001}
+                - cost_basis_per_share: {type: number_input, min: 0, prefix: "$"}
+                - purchase_date: {type: date_input}
+                - account: {type: selectbox, dynamic: true, source: user_accounts}
+                - notes: {type: text_area, optional: true}
+              submit_label: "Add Holding"
+              validation: client_side_then_server
+
+      - name: Transactions
+        components:
+          - filters:
+              - date_range: {type: date_range_input}
+              - account: {type: selectbox, options: dynamic}
+              - transaction_type: {type: multiselect, options: ["buy", "sell", "dividend", "transfer"]}
+          - transactions_table:
+              columns: [Date, Type, Ticker, Quantity, Price, Total, Fees, Account]
+              sortable: true
+              paginated: true
+              page_size: 25
+          - button: {label: "Export Transactions CSV", action: export_csv}
+
+      - name: Accounts
+        components:
+          - accounts_list:
+              columns: [Account Name, Type, Value, Holdings Count]
+          - button: {label: "Add Account", action: open_add_account_modal}
+
+  # ---------------------------------------------------------------------------
+  - id: PAGE-003
+    name: AIAdvisorPage
+    route: "/ai-advisor"
+    title: "AI Financial Advisor"
+    icon: "🤖"
+    priority: P0
+    description: >
+      Conversational chat interface for interacting with AI agents.
+      Streaming responses with rich formatting.
+
+    layout:
+      - disclaimer_banner: {required: true, persistent: true}
+
+      - agent_selector:
+          label: "Chat with"
+          options:
+            - {value: auto, label: "🤖 FinApp Assistant (auto-route)"}
+            - {value: AGENT-002, label: "📊 Portfolio Advisor"}
+            - {value: AGENT-003, label: "⚠️ Risk Analyst"}
+            - {value: AGENT-004, label: "🔍 Market Researcher"}
+            - {value: AGENT-005, label: "📰 News Sentinel"}
+            - {value: AGENT-006, label: "🎯 Financial Planner"}
+            - {value: AGENT-007, label: "✅ Trade Reviewer"}
+          default: auto
+
+      - chat_history:
+          component: ai_chat_message
+          max_messages_displayed: 50
+          scroll_to_bottom: true
+
+      - chat_input:
+          placeholder: "Ask me about your portfolio, market trends, risks..."
+          max_length: 2000
+          submit_on_enter: true
+          submit_button_label: "Send"
+
+      - quick_prompts:
+          label: "Quick questions"
+          prompts:
+            - "Summarize my portfolio performance this month"
+            - "What are my biggest risk exposures?"
+            - "Show me recent news for my holdings"
+            - "How am I tracking against S&P 500?"
+            - "Suggest how I could better diversify"
+
+    behavior:
+      streaming: true
+      show_agent_name_in_response: true
+      preserve_history_in_session: true
+      clear_history_button: true
+      export_chat_button: true
+
+  # ---------------------------------------------------------------------------
+  - id: PAGE-004
+    name: MarketPage
+    route: "/market"
+    title: "Market Data"
+    icon: "📈"
+    priority: P1
+    description: Market quotes, charts, watchlist, and fundamental data
+
+    tabs:
+      - name: Quotes & Charts
+        components:
+          - ticker_search:
+              placeholder: "Search ticker or company name..."
+              on_select: load_security_detail
+          - security_detail_panel:
+              conditional: ticker_selected
+              components:
+                - price_header: {ticker, price, change, change_pct, volume}
+                - candlestick_chart:
+                    plotly: true
+                    time_range_selector: [1D, 5D, 1M, 3M, 6M, YTD, 1Y, 5Y, All]
+                    indicator_overlay_selector:
+                      indicators: [SMA_20, SMA_50, SMA_200, BOLLINGER_BANDS, EMA_12, EMA_26]
+                      multiselect: true
+                - indicator_sub_chart: {indicators: [RSI, MACD, Volume]}
+                - fundamentals_table: {columns: [P/E, P/B, EV/EBITDA, Dividend Yield, EPS TTM, Revenue TTM, Profit Margin]}
+
+      - name: Watchlist
+        components:
+          - watchlist_table:
+              component: holding_row
+              add_ticker_input: true
+              remove_button_per_row: true
+          - alert_panel:
+              description: "Set price alerts for watchlist items"
+
+  # ---------------------------------------------------------------------------
+  - id: PAGE-005
+    name: RiskPage
+    route: "/risk"
+    title: "Risk Analysis"
+    icon: "⚠️"
+    priority: P1
+    description: Portfolio risk quantification and stress testing
+
+    layout:
+      - row:
+          name: risk_kpis
+          columns: 4
+          components:
+            - metric_card: {label: "VaR (95%, 1-Day)", value: var_95_1d_dollars}
+            - metric_card: {label: "Portfolio Beta", value: beta}
+            - metric_card: {label: "Sharpe Ratio", value: sharpe_ratio}
+            - metric_card: {label: "Max Drawdown", value: max_drawdown_pct}
+
+      - row:
+          name: risk_charts
+          columns: 2
+          components:
+            - chart:
+                title: "Correlation Heatmap"
+                type: heatmap
+                plotly: true
+                description: "Correlation between portfolio holdings returns"
+            - chart:
+                title: "Return Distribution"
+                type: histogram
+                plotly: true
+                overlay: [normal_distribution, historical_distribution]
+
+      - stress_test_panel:
+          title: "Stress Testing"
+          scenario_selector:
+            options: ["2008 Financial Crisis", "2020 COVID Crash", "2022 Rate Hike", "Dot-Com Bubble", "Custom"]
+          custom_shock_input:
+            conditional: scenario == "Custom"
+            type: slider
+            min: -70
+            max: -5
+            label: "Market drop (%)"
+          run_test_button: true
+          results_panel:
+            columns: [Scenario, Portfolio Loss ($), Portfolio Loss (%), Worst Holding, Est. Recovery Years]
+
+  # ---------------------------------------------------------------------------
+  - id: PAGE-006
+    name: NewsPage
+    route: "/news"
+    title: "Financial News"
+    icon: "📰"
+    priority: P1
+    description: News feed with sentiment analysis for portfolio holdings
+
+    layout:
+      - filters:
+          - source_filter: {type: multiselect, options: dynamic}
+          - sentiment_filter: {type: multiselect, options: [positive, neutral, negative]}
+          - ticker_filter: {type: multiselect, options: portfolio_tickers}
+          - date_range: {type: date_range_input, default: last_7_days}
+
+      - news_feed:
+          layout: card_grid
+          card_fields: [headline, source, published_at, sentiment_badge, ticker_tags, summary]
+          sentiment_badge:
+            positive: {color: green, icon: "📈"}
+            neutral: {color: grey, icon: "➡️"}
+            negative: {color: red, icon: "📉"}
+          click_action: open_article_url
+          refresh_button: true
+          auto_refresh_minutes: 30
+
+  # ---------------------------------------------------------------------------
+  - id: PAGE-007
+    name: SettingsPage
+    route: "/settings"
+    title: "Settings"
+    icon: "⚙️"
+    priority: P0
+    description: Application configuration and API key management
+
+    tabs:
+      - name: API Keys
+        description: "Securely configure external API keys (stored in .env, not in database)"
+        components:
+          - api_key_form:
+              fields:
+                - ALPHA_VANTAGE_API_KEY: {type: password_input, label: "Alpha Vantage API Key"}
+                - NEWS_API_KEY: {type: password_input, label: "NewsAPI Key"}
+                - BRAVE_SEARCH_API_KEY: {type: password_input, label: "Brave Search API Key"}
+              note: "API keys are saved to your local .env file and never stored in the application database."
+              save_button: true
+              test_connection_button: true
+
+      - name: Portfolio Settings
+        components:
+          - base_currency: {type: selectbox, options: [USD, EUR, GBP, CAD, AUD], default: USD}
+          - default_benchmark: {type: selectbox, options: [SPY, QQQ, DIA, Custom], default: SPY}
+          - risk_free_rate: {type: number_input, label: "Risk-free Rate (%)", default: 5.0, step: 0.1}
+
+      - name: Preferences
+        components:
+          - data_refresh_interval: {type: slider, min: 1, max: 60, default: 5, label: "Market data refresh (minutes)"}
+          - decimal_places: {type: selectbox, options: [2, 4], default: 2}
+          - large_position_threshold: {type: number_input, label: "Warn when position > % of portfolio", default: 10}
