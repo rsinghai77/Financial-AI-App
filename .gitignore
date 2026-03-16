@@ -1,0 +1,44 @@
+.DS_Store
+**/.DS_Store
+
+# Python caches
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.coverage
+**/coverage.xml
+**/htmlcov/
+
+# Notebooks
+**/.ipynb_checkpoints/
+
+# Envs
+**/.venv/
+**/venv/
+**/.python-version
+
+# Builds
+**/build/
+**/dist/
+**/*.egg-info/
+
+# Editors
+**/.vscode/
+**/.idea/
+
+
+# Claude files
+**/.claude/
+
+# Editor temporary files
+**/*.swp
+
+
+# Databricks temporary files
+.databricks/
+
+# Office temp files
+
+~$*

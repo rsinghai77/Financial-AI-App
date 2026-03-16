@@ -33,8 +33,7 @@ def calculate_twr(
         raise ValueError("Sub-period return cannot be -100% or worse")
 
     arr: npt.NDArray[np.float64] = np.array(period_returns, dtype=np.float64)
-    twr = float(np.prod(1 + arr)) - 1.0
-    return round(twr, 6)
+    return float(np.prod(1 + arr)) - 1.0
 
 
 def calculate_irr(
