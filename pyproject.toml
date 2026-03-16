@@ -1,0 +1,89 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "finapp"
+version = "0.1.0"
+description = "AI-Enabled Financial Application with Claude AI agents, MCP servers, and Streamlit GUI"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "rsingh" }]
+
+dependencies = [
+    # GUI
+    "streamlit>=1.42.0",
+    # AI
+    "anthropic>=0.49.0",
+    # MCP
+    "mcp>=1.5.0",
+    # Database
+    "sqlalchemy>=2.0.0",
+    "alembic>=1.14.0",
+    "aiosqlite>=0.20.0",
+    # Data & Finance
+    "pandas>=2.2.0",
+    "numpy>=1.26.0",
+    "scipy>=1.12.0",
+    "yfinance>=0.2.55",
+    "httpx>=0.27.0",
+    # Visualization
+    "plotly>=5.24.0",
+    "altair>=5.5.0",
+    # Config & validation
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.7.0",
+    "python-dotenv>=1.0.0",
+    # Caching
+    "diskcache>=5.6.0",
+    # Utilities
+    "python-dateutil>=2.9.0",
+    "pytz>=2024.1",
+    "requests>=2.32.0",
+    # PDF export
+    "reportlab>=4.2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=5.0.0",
+    "hypothesis>=6.115.0",
+    "ruff>=0.8.0",
+    "mypy>=1.11.0",
+    "types-python-dateutil",
+    "types-pytz",
+    "types-requests",
+]
+
+[project.scripts]
+finapp = "finapp.gui.main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/finapp"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "ANN", "S", "B", "A", "C4", "RET", "SIM"]
+ignore = ["ANN101", "ANN102", "ANN401", "S101"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+exclude = ["tests/"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "--cov=src/finapp --cov-report=term-missing --cov-fail-under=80"
+
+[tool.coverage.run]
+source = ["src/finapp"]
+omit = ["*/tests/*", "*/gui/*"]
